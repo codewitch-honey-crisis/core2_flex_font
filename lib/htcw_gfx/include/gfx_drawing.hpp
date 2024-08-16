@@ -2206,24 +2206,32 @@ struct draw {
                             if (r != gfx_result::success) {
                                 return r;
                             }
-                            r = full_bmp.point(dpt, &bgpx);
-                            if (r != gfx_result::success) {
-                                return r;
-                            }
-
                             a = rpx.template channelr<channel_name::A>();
                             if (invert) {
                                 a = 1.0 - a;
                             }
-                            if (a != oa || obgpx.native_value != bgpx.native_value) {
-                                dpx = fgpx.blend(bgpx, a * alpha_factor);
+                            if(a==0.0) {
+                                dpx=bgpx;
+                            } else if(a<1.0f) { 
+                                r = full_bmp.point(dpt, &bgpx);
+                                if (r != gfx_result::success) {
+                                    return r;
+                                }
+                                if (a != oa || obgpx.native_value != bgpx.native_value) {
+                                    dpx = fgpx.blend(bgpx, a * alpha_factor);
+                                }
+                                full_bmp.point(dpt, dpx);
+                                if (r != gfx_result::success) {
+                                    return r;
+                                }
+                            } else {
+                                dpx=fgpx;
+                                full_bmp.point(dpt, fgpx);
+                                if (r != gfx_result::success) {
+                                    return r;
+                                }
                             }
-
-                            full_bmp.point(dpt, dpx);
-
-                            if (r != gfx_result::success) {
-                                return r;
-                            }
+                            
                             oa = a;
                             obgpx = bgpx;
                         }

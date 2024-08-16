@@ -17,38 +17,42 @@ enum struct font_size_units {
     em = 0,
     px = 1
 };
-typedef gfx::gfx_result(*font_draw_callback)(gfx::spoint16 location,gfx::bitmap<gfx::alpha_pixel<8>>& glyph_icon, void* state);
+typedef gfx::gfx_result(*font_draw_callback)(gfx::spoint16 location,const gfx::const_bitmap<gfx::alpha_pixel<8>>& glyph_icon, void* state);
 class font_draw_cache {
     typedef struct {
         int accessed;
         gfx::size16 dimensions;
         uint8_t* data;
     } cache_entry_t;
-    using map_t = data::simple_fixed_map<int,cache_entry_t,32>;
+    using map_t = data::simple_fixed_map<int32_t,cache_entry_t,32>;
     void*(*m_allocator)(size_t);
     void*(*m_reallocator)(void*,size_t);
     void(*m_deallocator)(void*);
     bool m_initialized;
-    int m_max_accessed;
-    int m_min_accessed;
+    int m_accessed;
     map_t m_cache;
-    size_t m_size;
-    size_t m_max_size;
+    size_t m_memory_size;
+    size_t m_max_memory_size;
+    size_t m_max_entries;
     font_draw_cache(const font_draw_cache& rhs)=delete;
     font_draw_cache& operator=(const font_draw_cache& rhs)=delete;
-    static int hash_function(const int& key); 
-    void expire_oldest(size_t new_data_size);
-    void reduce(size_t new_size);
+    static int hash_function(const int32_t& key); 
+    void expire_memory(size_t new_data_size);
+    void expire_item();
+    void reduce(int new_size, int new_item_size);
 public:
     font_draw_cache(void*(allocator)(size_t)=::malloc, void*(reallocator)(void*,size_t)=::realloc, void(deallocator)(void*)=::free);
     font_draw_cache(font_draw_cache&& rhs);
     virtual ~font_draw_cache();
     font_draw_cache& operator=(font_draw_cache&& rhs);
-    size_t max_size() const;
-    void max_size(size_t value);
-    size_t size() const;
-    gfx::gfx_result add(int codepoint, gfx::size16 dimensions, const uint8_t* data);
-    gfx::gfx_result find(int codepoint, gfx::size16* out_dimensions, uint8_t** out_bitmap) const;
+    size_t max_memory_size() const;
+    void max_memory_size(size_t value);
+    size_t memory_size() const;
+    size_t max_entries() const;
+    void max_entries(size_t value);
+    size_t entries() const;
+    gfx::gfx_result add(int32_t codepoint, gfx::size16 dimensions, const uint8_t* data);
+    gfx::gfx_result find(int32_t codepoint, gfx::size16* out_dimensions, uint8_t ** out_bitmap);
     void clear();
     gfx::gfx_result initialize();
     bool initialized() const;
@@ -70,27 +74,31 @@ class font_measure_cache {
     void*(*m_reallocator)(void*,size_t);
     void(*m_deallocator)(void*);
     bool m_initialized;
-    int m_max_accessed;
-    int m_min_accessed;
+    int m_accessed;
     map_t m_cache;
-    size_t m_size;
-    size_t m_max_size;
+    size_t m_memory_size;
+    size_t m_max_memory_size;
+    size_t m_max_entries;
     font_measure_cache(const font_measure_cache& rhs)=delete;
     font_measure_cache& operator=(const font_measure_cache& rhs)=delete;
     static int hash_function(const key_t& key); 
-    static void make_key(int codepoint1, int codepoint2, key_t* out_key);
-    void expire_oldest(size_t new_data_size);
-    void reduce(size_t new_size);
+    static void make_key(int32_t codepoint1, int32_t codepoint2, key_t* out_key);
+    void expire_memory(size_t new_data_size);
+    void expire_item();
+    void reduce(int new_size, int new_item_size);
 public:
     font_measure_cache(void*(allocator)(size_t)=::malloc, void*(reallocator)(void*,size_t)=::realloc, void(deallocator)(void*)=::free);
     font_measure_cache(font_measure_cache&& rhs);
     virtual ~font_measure_cache();
     font_measure_cache& operator=(font_measure_cache&& rhs);
-    size_t max_size() const;
-    void max_size(size_t value);
-    size_t size() const;
-    gfx::gfx_result add(int codepoint1, int codepoint2, const font_glyph_info& data);
-    gfx::gfx_result find(int codepoint1, int codepoint2, font_glyph_info* out_glyph_info) const;
+    size_t max_memory_size() const;
+    void max_memory_size(size_t value);
+    size_t memory_size() const;
+    size_t max_entries() const;
+    void max_entries(size_t value);
+    size_t entries() const;
+    gfx::gfx_result add(int32_t codepoint1, int32_t codepoint2, const font_glyph_info& data);
+    gfx::gfx_result find(int32_t codepoint1, int32_t codepoint2, font_glyph_info* out_glyph_info);
     void clear();
     gfx::gfx_result initialize();
     bool initialized() const;
@@ -99,8 +107,8 @@ public:
 
 class font_base {
 protected:
-    virtual gfx::gfx_result on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const=0;
-    virtual gfx::gfx_result on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int codepoint, int glyph_index = -1) const=0;
+    virtual gfx::gfx_result on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const=0;
+    virtual gfx::gfx_result on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int32_t codepoint, int glyph_index = -1) const=0;
 public:
     virtual gfx::gfx_result initialize()=0;
     virtual bool initialized() const=0;
@@ -126,7 +134,7 @@ class tt_font : public font_base {
     tt_font(const tt_font& rhs)=delete;
     tt_font& operator=(const tt_font& rhs)=delete;
 protected:
-    virtual gfx::gfx_result on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const override;
+    virtual gfx::gfx_result on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const override;
     virtual gfx::gfx_result on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int codepoint, int glyph_index = -1) const override;
 public:
     tt_font(gfx::stream& stream,float size, font_size_units units = font_size_units::em, bool initialize = false);
@@ -154,7 +162,7 @@ class win_font : public font_base {
     win_font& operator=(const win_font& rhs)=delete;
     gfx::gfx_result seek_char(char ch) const;
 protected:
-    virtual gfx::gfx_result on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const override;
+    virtual gfx::gfx_result on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const override;
     virtual gfx::gfx_result on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int codepoint, int glyph_index = -1) const override;
 public:
     win_font(gfx::stream& stream, size_t font_index = 0, bool initialize = false);
@@ -178,10 +186,10 @@ class vlw_font : public font_base {
     int16_t m_ascent, m_descent;
     int16_t m_max_ascent, m_max_descent;
     gfx::size16 m_bmp_size_max;
-    gfx::gfx_result seek_codepoint(int codepoint, int* out_glyph_index = nullptr) const;
+    gfx::gfx_result seek_codepoint(int32_t codepoint, int* out_glyph_index = nullptr) const;
     gfx::gfx_result read_uint32(uint32_t* out) const;
 protected:
-    virtual gfx::gfx_result on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const override;
+    virtual gfx::gfx_result on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const override;
     virtual gfx::gfx_result on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int codepoint, int glyph_index = -1) const override;
 public:
     vlw_font(gfx::stream& stream, bool initialize = false);

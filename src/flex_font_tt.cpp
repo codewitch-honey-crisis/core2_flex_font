@@ -88,6 +88,7 @@ gfx_result tt_font::initialize() {
     }
     int line_gap, ascent,descent; 
     stbtt_GetFontVMetrics(info, &ascent, &descent, &line_gap);
+    m_line_height = (int)(m_scale * (ascent - descent));
     m_line_advance = (int)(m_scale * (ascent - descent + line_gap));
     m_base_line = (m_scale * (line_gap - descent));
     return gfx_result::success;
@@ -101,7 +102,7 @@ void tt_font::deinitialize() {
         m_info = nullptr;
     }
 }
-gfx_result tt_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const {
+gfx_result tt_font::on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const {
     if(m_info==nullptr) {
         return gfx_result::invalid_state;
     }
@@ -120,11 +121,11 @@ gfx_result tt_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* o
     }
     int x1, y1, x2, y2;
     stbtt_GetGlyphBitmapBox((stbtt_fontinfo*)m_info, g1, m_scale, m_scale, &x1, &y1, &x2, &y2);
-    //printf("(%d,%d)-(%d,%d) @ %f\n",x1,y1,x2,y2,m_scale);
+    //printf("(%d,%d)-(%d,%d) @ %d\n",x1,y1,x2,y2,(m_line_advance));
     out_glyph_info->dimensions.width = x2-x1+1;
     out_glyph_info->dimensions.height = y2-y1+1;
     out_glyph_info->offset.x = x1;
-    out_glyph_info->offset.y = -y1;
+    out_glyph_info->offset.y = m_line_height+y1;
     //printf("offset (%d,%d)\n",(int)out_glyph_info->offset.x,(int)out_glyph_info->offset.y);
     int advw=0;
     int lsb=0;
@@ -138,7 +139,7 @@ gfx_result tt_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* o
     }
     return gfx_result::success;
 }
-gfx_result tt_font::on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int codepoint, int glyph_index) const {
+gfx_result tt_font::on_draw(gfx::bitmap<gfx::alpha_pixel<8>>& destination,int32_t codepoint, int glyph_index) const {
     if(m_info==nullptr) {
         return gfx_result::invalid_state;
     }

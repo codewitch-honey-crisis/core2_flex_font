@@ -21,7 +21,7 @@ gfx_result vlw_font::read_uint32(uint32_t* out) const {
     *out |= uint32_t(tmp);
     return gfx_result::success;
 }
-gfx_result vlw_font::seek_codepoint(int codepoint, int* out_glyph_index) const {
+gfx_result vlw_font::seek_codepoint(int32_t codepoint, int* out_glyph_index) const {
     size_t i = 0;
     m_stream->seek(24);
     while(i<m_glyph_count) {
@@ -30,7 +30,7 @@ gfx_result vlw_font::seek_codepoint(int codepoint, int* out_glyph_index) const {
         if(res!=gfx_result::success) {
             return res;
         }
-        if(cp_cmp==codepoint) {
+        if(((int32_t)cp_cmp)==codepoint) {
             m_stream->seek(-4,seek_origin::current);
             if(out_glyph_index) {
                 *out_glyph_index = i;
@@ -175,7 +175,7 @@ uint16_t vlw_font::base_line() const {
     return m_bmp_size_max.height;
 }
 
-gfx_result vlw_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const{
+gfx_result vlw_font::on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const{
     if(!initialized()) {
         return gfx_result::invalid_state;
     }
@@ -206,7 +206,7 @@ gfx_result vlw_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* 
         if(res!=gfx_result::success) {
             return res;
         }
-        out_glyph_info->offset.y = tmp;
+        out_glyph_info->offset.y = m_line_advance-tmp;
         res=read_uint32(&tmp);
         if(res!=gfx_result::success) {
             return res;
@@ -221,7 +221,7 @@ gfx_result vlw_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* 
     }
     return gfx_result::success;
 }
-gfx_result vlw_font::on_draw(bitmap<alpha_pixel<8>>& destination,int codepoint, int glyph_index) const {
+gfx_result vlw_font::on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoint, int32_t glyph_index) const {
     if(!initialized()) {
         return gfx_result::invalid_state;
     }
@@ -255,7 +255,7 @@ gfx_result vlw_font::on_draw(bitmap<alpha_pixel<8>>& destination,int codepoint, 
             if(res!=gfx_result::success) {
                 return res;
             }
-            if(cp_cmp==codepoint) {
+            if(((int32_t)cp_cmp)==codepoint) {
                 bmp_offset = bmp_ptr;
                 break;
             } else {

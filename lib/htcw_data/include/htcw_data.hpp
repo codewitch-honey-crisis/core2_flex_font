@@ -76,9 +76,9 @@ class simple_vector final {
         return resize(new_size);
     }
     inline const_iterator cbegin() const { return m_begin; }
-    inline const_iterator cend() const { return m_begin + m_size; }
+    inline const_iterator cend() const { return m_begin==nullptr?nullptr:m_begin + m_size; }
     inline iterator begin() { return m_begin; }
-    inline iterator end() { return m_begin + m_size; }
+    inline iterator end() { return m_begin==nullptr?nullptr: m_begin + m_size; }
     void clear(bool keep_capacity = false) {
         if (keep_capacity) {
             m_size = 0;
@@ -97,6 +97,16 @@ class simple_vector final {
         }
 
         m_begin[m_size++] = value;
+        return true;
+    }
+    bool push_multi_raw(const T* values, size_t values_size) {
+        if(values_size==0) { return true; }
+        if(values==nullptr) { return false; }
+        if (!resize(m_size + values_size)) {
+            return false;
+        }
+        memcpy(m_begin,values,values_size * sizeof(T));
+        m_size += values_size;
         return true;
     }
     void erase(iterator first, iterator last) {
@@ -283,6 +293,7 @@ class simple_fixed_map final {
             while (it != bucket.end()) {
                 if (it->key == key) {
                     bucket.erase(it,it);
+                    --m_size;
                     return true;
                 }
                 ++it;
@@ -291,23 +302,24 @@ class simple_fixed_map final {
         return false;
     }
     value_type* at(size_t index) {
-        for(int i = 0;i<Size;++i) {
-            bucket_type& bucket = m_buckets[i];
+        size_t i = 0;
+        for(size_t j=0;j<Size;++j) {
+            bucket_type& bucket = m_buckets[j];
             for(typename bucket_type::iterator it = bucket.begin();it!=bucket.end();++it) {
-                if(index==0) {
+                if(index==i) {
                     return it;
                 }
-                --index;
+                ++i;
             }
         }
         return nullptr;
     }
-    const mapped_type* find(const key_type& key) const {
+    mapped_type* find(const key_type& key) {
         int h = m_hash_function(key) % Size;
-        const bucket_type& bucket = m_buckets[h];
+        bucket_type& bucket = m_buckets[h];
         if (bucket.size()) {
-            auto it = bucket.cbegin();
-            while (it != bucket.cend()) {
+            auto it = bucket.begin();
+            while (it != bucket.end()) {
                 if (it->key == key) {
                     return &it->value;
                 }

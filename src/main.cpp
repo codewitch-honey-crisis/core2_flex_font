@@ -19,12 +19,18 @@ void loop();
 #include <m5core2_power.hpp> // AXP192 power management (core2)
 #include <uix.hpp> // user interface library
 #include <gfx.hpp> // graphics library
-#define TELEGRAMA_IMPLEMENTATION
-#include "assets/telegrama.hpp"
-#define VGA_8X8_IMPLEMENTATION
-#include "assets/vga_8x8.hpp"
-#define NOTOSANSBOLD15_IMPLEMENTATION
-#include "assets/NotoSansBold15.hpp"
+//#define SYNNOVA_REGULAR_IMPLEMENTATION
+//#include "assets/SYNNova_Regular.hpp"
+//#define BUNGEE_REGULAR_IMPLEMENTATION
+//#include "assets/Bungee_Regular.hpp"
+//#define TELEGRAMA_IMPLEMENTATION
+//#include "assets/telegrama.hpp"
+#define OPENSANS_REGULAR_IMPLEMENTATION
+#include "assets/OpenSans_Regular.hpp"
+//#define VGA_8X8_IMPLEMENTATION
+//#include "assets/vga_8x8.hpp"
+//#define NOTOSANSBOLD15_IMPLEMENTATION
+//#include "assets/NotoSansBold15.hpp"
 #include "flex_font.hpp"
 
 using namespace gfx; // graphics
@@ -57,21 +63,35 @@ class font_box : public uix::control<ControlSurfaceType> {
     using color_type = gfx::color<pixel_type>;
     using color32_type = gfx::color<gfx::rgba_pixel<32>>;
    private:
+    struct draw_cb_state {
+        control_surface_type* dst;
+        srect16 clip;
+    };
     font_draw_cache m_font_draw_cache;
     font_measure_cache m_font_measure_cache;
     //win_font m_font;
     tt_font m_font;
     //::vlw_font m_font;
     srect16 m_rect;
-    constexpr static const char* text = "hello\tworld\nfoo bar!";
-    static gfx_result draw_cb(spoint16 location,bitmap<alpha_pixel<8>>& glyph, void* state) {
-        control_surface_type& dst = *(control_surface_type*)state;
-        return draw::icon(dst,location,glyph,rgb_pixel<16>(rand()%32,rand()%64,rand()%32));
+    constexpr static const char* text = "helly\tworld\nfoo bar! puke";
+    static gfx_result draw_cb(spoint16 location,const const_bitmap<alpha_pixel<8>>& glyph, void* state) {
+        draw_cb_state* st = (draw_cb_state*)state;
+        control_surface_type& dst = *(control_surface_type*)st->dst;
+        const srect16 r(location,(ssize16)glyph.dimensions());
+        draw::rectangle(dst,r,color_t::blue);
+        if(r.intersects(st->clip)) {
+            return draw::icon(dst,location,glyph,rgb_pixel<16>(rand()%32,rand()%64,rand()%32));
+        } else {
+            return gfx_result::success;
+        }
     }
    public:
     font_box(uix::invalidation_tracker &parent, const palette_type *palette = nullptr)
-        : base_type(parent, palette),
-        m_font(telegrama_stream,30,font_size_units::px) 
+        : base_type(parent, palette),m_font_draw_cache(malloc,realloc,free),m_font_measure_cache(malloc,realloc,free),
+        m_font(OpenSans_Regular_stream,30,font_size_units::px) 
+        //m_font(SYNNova_Regular_stream,30,font_size_units::px) 
+        //m_font(Bungee_Regular_stream,25,font_size_units::px) 
+        //m_font(telegrama_stream,30,font_size_units::px) 
         //m_font(vga_8x8_stream)
         //m_font(NotoSansBold15_stream)
     {
@@ -98,11 +118,23 @@ class font_box : public uix::control<ControlSurfaceType> {
     virtual ~font_box() {
        
     }
+    void dump_stats() {
+        puts("draw cache:");
+        printf("\titems: %d/%d\n",(int)m_font_draw_cache.entries(), (int)m_font_draw_cache.max_entries());
+        printf("\tmemory: %d/%d\n",(int)m_font_draw_cache.memory_size(), (int)m_font_draw_cache.max_memory_size());
+        puts("measure cache:");
+        printf("\titems: %d/%d\n",(int)m_font_measure_cache.entries(), (int)m_font_measure_cache.max_entries());
+        printf("\tmemory: %d/%d\n",(int)m_font_measure_cache.memory_size(), (int)m_font_measure_cache.max_memory_size());
+    }
     virtual void on_before_render() override {
         static int draw_state = 0;
         if(draw_state==0) {
-            m_font_draw_cache.max_size(512);
-            m_font_measure_cache.max_size(512);
+            m_font_draw_cache.initialize();
+            m_font_measure_cache.initialize();
+            //m_font_draw_cache.max_memory_size();
+            m_font_draw_cache.max_entries(20);
+            m_font_measure_cache.max_memory_size(512);
+
             gfx_result res = m_font.initialize();
             if(gfx_result::success!=res) {
                 printf("init error: %d\n",(int)res);
@@ -117,9 +149,15 @@ class font_box : public uix::control<ControlSurfaceType> {
         }
     }
     virtual void on_paint(control_surface_type &destination, const gfx::srect16 &clip) override {
-        gfx_result res = m_font.draw(m_rect,text,draw_cb,&destination,4,gfx_encoding::utf8,&m_font_draw_cache,&m_font_measure_cache);
-        if(gfx_result::success!=res) {
-            //printf("draw error: %d\n",(int)res);
+        if(clip.intersects(m_rect)) {
+            draw::rectangle(destination,m_rect,color_t::red);
+            draw_cb_state state;
+            state.dst = &destination;
+            state.clip = clip;
+            gfx_result res = m_font.draw(m_rect,text,draw_cb,&state,4,gfx_encoding::utf8,&m_font_draw_cache,&m_font_measure_cache);
+            if(gfx_result::success!=res) {
+                //printf("draw error: %d\n",(int)res);
+            }
         }
     }
 };
@@ -291,10 +329,11 @@ void loop()
     ++frames;
     if(millis()>=time_ts+1000) {
         if(frames==0) {
-            printf("<1 FPS, Total: %dms\n",(int)total_ms);
+            //printf("<1 FPS, Total: %dms\n",(int)total_ms);
         } else {
-            printf("%d FPS, Avg: %dms\n",frames,(int)(total_ms/frames));
+            //printf("%d FPS, Avg: %dms\n",frames,(int)(total_ms/frames));
         }
+        //main_box.dump_stats();
         frames = 0;
         total_ms = 0;
         time_ts = millis();

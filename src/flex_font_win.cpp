@@ -177,7 +177,7 @@ uint16_t win_font::base_line() const {
     }
     return m_line_height;
 }
-gfx_result win_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* out_glyph_info) const {
+gfx_result win_font::on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const {
     if(codepoint1<0||codepoint1>255) {
         return gfx_result::invalid_argument;
     }
@@ -191,7 +191,7 @@ gfx_result win_font::on_measure(int codepoint1,int codepoint2, font_glyph_info* 
     out_glyph_info->offset = {0,0};
     return gfx_result::success;
 }
-gfx_result win_font::on_draw(bitmap<alpha_pixel<8>>& destination,int codepoint, int glyph_index) const {
+gfx_result win_font::on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoint, int glyph_index) const {
     if(codepoint<0||codepoint>255) {
         return gfx_result::invalid_argument;
     }
