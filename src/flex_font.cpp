@@ -15,9 +15,8 @@ void font_draw_cache::expire_memory(size_t new_data_size) {
             if(min==-1 || v.value.accessed<min) {
                 min = v.value.accessed;
                 k=v.key;
-                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t);
+                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
                 data = v.value.data;
-                break;
             }  
         }
         if(min==-1) {
@@ -42,7 +41,7 @@ void font_draw_cache::expire_item() {
             if(min==-1 || v.value.accessed<min) {
                 min = v.value.accessed;
                 k=v.key;
-                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t);
+                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
                 data = v.value.data;
                 break;
             }  
@@ -68,7 +67,7 @@ void font_draw_cache::reduce(int new_size, int new_items) {
                 if(min==-1 || v.value.accessed<min) {
                     min = v.value.accessed;
                     k=v.key;
-                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t);
+                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
                     break;
                 }
             }
@@ -92,7 +91,7 @@ void font_draw_cache::reduce(int new_size, int new_items) {
                 if(min==-1 || v.value.accessed<min) {
                     min = v.value.accessed;
                     k=v.key;
-                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t);
+                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
                     break;
                 }
             }
@@ -172,7 +171,7 @@ size_t font_draw_cache::entries() const {
     return m_cache.size();
 }
 
-gfx_result font_draw_cache::find(int codepoint, size16* out_dimensions,uint8_t** out_bitmap) {
+gfx_result font_draw_cache::find(int32_t codepoint, size16* out_dimensions,uint8_t** out_bitmap) {
     cache_entry_t* entry = m_cache.find(codepoint);
     if(entry==nullptr) {
         return gfx_result::canceled;
@@ -206,12 +205,13 @@ void font_draw_cache::deinitialize() {
     clear();
     m_initialized= false;
 }
-gfx_result font_draw_cache::add(int codepoint, size16 dimensions, const uint8_t* data) {
+gfx_result font_draw_cache::add(int32_t codepoint, size16 dimensions, const uint8_t* data) {
     size_t sz = dimensions.width*dimensions.height;
     if(sz==0) {
         return gfx_result::invalid_argument;
     }
     sz+=sizeof(cache_entry_t);
+    sz+=sizeof(int32_t);
     if(m_max_memory_size>0 && sz>m_max_memory_size) {
         return gfx_result::out_of_memory;
     }
@@ -262,16 +262,15 @@ void font_measure_cache::make_key(int32_t codepoint1, int32_t codepoint2, key_t*
 }
 
 void font_measure_cache::expire_memory(size_t new_data_size) {
+    size_t sz=sizeof(cache_entry_t)+sizeof(key_t);
     while(m_cache.size() && (m_memory_size+new_data_size)>m_max_memory_size) {
         int min = -1;
-        size_t sz=sizeof(font_glyph_info);
         map_t::key_type k;
         for(size_t i = 0;i<m_cache.size();++i) {
             map_t::value_type& v = *m_cache.at(i);
             if(min==-1 || v.value.accessed<min) {
                 min = v.value.accessed;
                 k=v.key;
-                break;
             } 
         }
         if(min==-1) {
@@ -287,14 +286,14 @@ void font_measure_cache::expire_memory(size_t new_data_size) {
 void font_measure_cache::expire_item() {
     if(m_cache.size()) {
         int min = -1;
-        size_t sz;
+        size_t sz=0;
         map_t::key_type k;
         for(size_t i = 0;i<m_cache.size();++i) {
             map_t::value_type& v = *m_cache.at(i);
             if(min==-1 || v.value.accessed<min) {
                 min = v.value.accessed;
                 k=v.key;
-                sz = sizeof(cache_entry_t);
+                sz = sizeof(cache_entry_t)+sizeof(key_t);
                 break;
             }  
         }
@@ -316,7 +315,7 @@ void font_measure_cache::reduce(int new_size, int new_items) {
                 if(min==-1 || v.value.accessed<min) {
                     min = v.value.accessed;
                     k=v.key;
-                    sz = sizeof(cache_entry_t);
+                    sz = sizeof(cache_entry_t)+sizeof(key_t);;
                     break;
                 }
             }
@@ -337,7 +336,7 @@ void font_measure_cache::reduce(int new_size, int new_items) {
                 if(min==-1 || v.value.accessed<min) {
                     min = v.value.accessed;
                     k=v.key;
-                    sz = sizeof(cache_entry_t);
+                    sz = sizeof(cache_entry_t)+sizeof(key_t);;
                     break;
                 }
             }
@@ -395,7 +394,7 @@ void font_measure_cache::max_memory_size(size_t value) {
     if(value<1) {
         return;
     }
-    if(m_memory_size>value) {
+    if(m_max_memory_size==0 || m_memory_size>value) {
         reduce(value,-1);
     }
     m_max_memory_size = value;
@@ -411,7 +410,7 @@ void font_measure_cache::max_entries(size_t value) {
     if(value<1) {
         return;
     }
-    if(m_cache.size()>value) {
+    if(m_max_entries=0 ||m_cache.size()>value) {
         reduce(-1,value);
     }
     m_max_entries = value;
@@ -450,12 +449,13 @@ void font_measure_cache::deinitialize() {
     m_initialized= false;
 }
 gfx_result font_measure_cache::add(int codepoint1, int codepoint2, const font_glyph_info& glyph_info) {
-    size_t sz = sizeof(cache_entry_t);
+    size_t sz = sizeof(cache_entry_t)+sizeof(key_t);;
     if(m_max_memory_size>0 && sz>m_max_memory_size) {
         return gfx_result::out_of_memory;
     }
     if(m_max_memory_size>0) {
         while( m_cache.size() && m_memory_size+sz>m_max_memory_size) {
+            //printf("m_memory_size: %d, m_max_memory_size: %d, sz: %d\n",(int)m_memory_size,(int)m_max_memory_size,(int)sz);
             expire_memory(sz);
         }
         if(m_memory_size+sz>m_max_memory_size) {
@@ -479,10 +479,11 @@ gfx_result font_measure_cache::add(int codepoint1, int codepoint2, const font_gl
     if(!m_cache.insert({k,entry})) {
         return gfx_result::out_of_memory;
     }
+    //printf("ADDED, size: %d\n",(int)m_cache.size());
     m_memory_size += sz;
     return gfx_result::success;
 }
-gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_area, uint16_t tab_width, gfx_encoding encoding, font_measure_cache* cache) const {
+gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_area, uint16_t tab_width, const text_encoder& encoding, font_measure_cache* cache) const {
     if(text==nullptr || out_area==nullptr) {
         return gfx_result::invalid_argument;
     }
@@ -502,8 +503,8 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
     uint32_t cp=0, cp_next=0;
     size_t advlen = len;
     size_t advlen_next = 0;
-    const uint16_t lineh = this->line_advance();
-    gfx_result res = to_utf32(sz,&cp,&advlen,encoding);
+    const uint16_t lineadv = this->line_advance();
+    gfx_result res = encoding.to_utf32(sz,&cp,&advlen);
     if(res!=gfx_result::success) {
         return res;
     }
@@ -511,13 +512,13 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
     len-=advlen;
     if(*sz) {
         advlen_next = len;
-        res = to_utf32(sz,&cp_next,&advlen_next,encoding);
+        res = encoding.to_utf32(sz,&cp_next,&advlen_next);
         if(res!=gfx_result::success) {
             return res;
         }
         sz+=advlen_next;
         len-=advlen_next;
-        y_ext = lineh;
+        y_ext = lineadv;
     } else {
         out_area->width = 0;
         out_area->height = 0;
@@ -554,9 +555,9 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
                 x=((x/cw)+1)*cw;
                 if(x>=max_width) {
                     x=0;
-                    y+=lineh;
-                    if(y+lineh>y_ext) {
-                        y_ext = y+lineh;
+                    y+=lineadv;
+                    if(y+lineadv>y_ext) {
+                        y_ext = y+lineadv;
                     }
                 }
                 if(x>x_ext) {
@@ -568,9 +569,9 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
                 xo=0;
                 break;
             case '\n':
-                y+=lineh;
-                if(y+lineh>y_ext) {
-                    y_ext = y+lineh;
+                y+=lineadv;
+                if(y+lineadv>y_ext) {
+                    y_ext = y+lineadv;
                 }
                 xo=0;
                 x=0;
@@ -592,11 +593,11 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
                     }
                 }
                 xo=x+gi.dimensions.width+gi.offset.x;
-                tail = (gi.dimensions.height+gi.offset.y)>lineh?(gi.dimensions.height+gi.offset.y):lineh;
+                tail = (gi.dimensions.height+gi.offset.y)>lineadv?(gi.dimensions.height+gi.offset.y):lineadv;
                 if(xo>max_width) {
                     x=0;
                     xo = gi.dimensions.width+gi.offset.x;
-                    y+=lineh;
+                    y+=lineadv;
                     if(y+tail>y_ext) {
                         y_ext = y+tail;
                     }
@@ -619,7 +620,7 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
         // advance
         if(*sz) {
             advlen_next = len;
-            res = to_utf32(sz,&cp_next,&advlen_next,encoding);
+            res = encoding.to_utf32(sz,&cp_next,&advlen_next);
             if(res!=gfx_result::success) {
                 return res;
             }
@@ -637,7 +638,7 @@ gfx_result font_base::measure(uint16_t max_width,const char* text, size16* out_a
     return gfx_result::success;
 }
 
-gfx_result font_base::draw(const gfx::srect16& bounds, const char* text, font_draw_callback callback, void* callback_state, uint16_t tab_width, gfx::gfx_encoding encoding, font_draw_cache* draw_cache, font_measure_cache* measure_cache) const {
+gfx_result font_base::draw(const gfx::srect16& bounds, const char* text, font_draw_callback callback, void* callback_state, uint16_t tab_width, const text_encoder& encoding, font_draw_cache* draw_cache, font_measure_cache* measure_cache) const {
     using bmp_t = gfx::bitmap<alpha_pixel<8>>;
     using const_bmp_t = gfx::const_bitmap<alpha_pixel<8>>;
     if(text==nullptr || callback==nullptr) {
@@ -667,7 +668,7 @@ gfx_result font_base::draw(const gfx::srect16& bounds, const char* text, font_dr
     size_t advlen_next = 0;
     const uint16_t lineh = this->line_advance();
     //printf("line adv: %d\n",(int)lineh);
-    gfx_result res = to_utf32(sz,&cp,&advlen,encoding);
+    gfx_result res = encoding.to_utf32(sz,&cp,&advlen);
     if(res!=gfx_result::success) {
         return res;
     }
@@ -675,7 +676,7 @@ gfx_result font_base::draw(const gfx::srect16& bounds, const char* text, font_dr
     len-=advlen;
     if(*sz) {
         advlen_next = len;
-        res = to_utf32(sz,&cp_next,&advlen_next,encoding);
+        res = encoding.to_utf32(sz,&cp_next,&advlen_next);
         if(res!=gfx_result::success) {
             return res;
         }
@@ -822,7 +823,7 @@ gfx_result font_base::draw(const gfx::srect16& bounds, const char* text, font_dr
         // advance
         if(*sz) {
             advlen_next = len;
-            res = to_utf32(sz,&cp_next,&advlen_next,encoding);
+            res = encoding.to_utf32(sz,&cp_next,&advlen_next);
             if(res!=gfx_result::success) {
                 if(buffer) {
                     free(buffer);

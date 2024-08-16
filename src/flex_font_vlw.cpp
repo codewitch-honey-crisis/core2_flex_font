@@ -146,7 +146,7 @@ gfx_result vlw_font::initialize() {
         }
     }
     m_line_advance = m_ascent + m_descent;
-    printf("line_advance: %d\n",(int)m_line_advance);
+    //printf("line_advance: %d\n",(int)m_line_advance);
     m_space_width = (m_ascent + m_descent) * 2/7;
     return gfx_result::success;
 }

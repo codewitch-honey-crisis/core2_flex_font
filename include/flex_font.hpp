@@ -62,7 +62,7 @@ class font_measure_cache {
     typedef struct measure_key {
         uint8_t value[8];
         inline bool operator==(const measure_key& key) const {
-            return 0==memcmp(key.value,value,sizeof(value));
+            return 0==memcmp(key.value,value,8);
         }
     } key_t;
     typedef struct {
@@ -117,8 +117,8 @@ public:
     virtual uint16_t line_advance() const = 0;
     virtual uint16_t base_line() const = 0;
 public:
-    gfx::gfx_result measure(uint16_t max_width,const char* text, gfx::size16* out_area, uint16_t tab_width = 4, gfx::gfx_encoding encoding = gfx::gfx_encoding::utf8, font_measure_cache* cache = nullptr) const;
-    gfx::gfx_result draw(const gfx::srect16& bounds, const char* text,font_draw_callback callback, void* callback_state=nullptr,  uint16_t tab_width = 4, gfx::gfx_encoding encoding = gfx::gfx_encoding::utf8, font_draw_cache* draw_cache = nullptr, font_measure_cache* measure_cache = nullptr) const;
+    gfx::gfx_result measure(uint16_t max_width,const char* text, gfx::size16* out_area, uint16_t tab_width = 4, const gfx::text_encoder& encoding = gfx::text_encoding::utf8, font_measure_cache* cache = nullptr) const;
+    gfx::gfx_result draw(const gfx::srect16& bounds, const char* text,font_draw_callback callback, void* callback_state=nullptr,  uint16_t tab_width = 4, const gfx::text_encoder& encoding = gfx::text_encoding::utf8, font_draw_cache* draw_cache = nullptr, font_measure_cache* measure_cache = nullptr) const;
 };
 
 class tt_font : public font_base {
